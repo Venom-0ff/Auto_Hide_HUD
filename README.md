@@ -8,7 +8,7 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 - Save, edit, and delete your custom rules - everything is saved in the `rules.ini` config file
 
 ## Video Demo
-[![Auto Hide HUD demo](https://img.youtube.com/vi/-D__XKbmtaQ/0.jpg)](https://www.youtube.com/watch?v=-D__XKbmtaQ)
+[![Auto Hide HUD demo](https://img.youtube.com/vi/-D__XKbmtaQ/0.jpg)](https://youtu.be/-D__XKbmtaQ)
 
 ## Installation
 1. Unpack the archive
