@@ -160,6 +160,7 @@ local function rules(dt)
         config = ac.INIConfig.load(CONFIG_PATH)
         listOfRules = {}
         initRules()
+        applyRules()
     end
     if ui.itemHovered() then ui.setTooltip("Reset rules to the last saved state") end
 
