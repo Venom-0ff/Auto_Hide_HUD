@@ -1,13 +1,16 @@
--- Conditional HUD App
+-- Auto-Hide HUD App
 -- Author: Venom
 -- Version: 1.0
 
 local SIM = ac.getSim()
 local UI = ac.getUI()
-local CONFIG_PATH = ac.getFolder(ac.FolderID.ACApps) .. "/lua/ConditionalHUD/rules.ini"
-local CONFIG = ac.INIConfig.load(CONFIG_PATH)
 local DESKTOPS = { "1", "2", "3", "4", "All" }
-local HIDE_CONDITIONS = { "Off", "Never", "In interior views", "In exterior views" }
+local HIDE_CONDITIONS = { "Off", "In interior views", "In exterior views" }
+
+local MANIFEST = ac.INIConfig.load("manifest.ini")
+local CONFIG_PATH = ac.getFolder(ac.FolderID.ACApps) .. "/lua/Auto_Hide_HUD/rules.ini"
+local config = ac.INIConfig.load(CONFIG_PATH)
+
 
 local listOfRules = {}
 local visibleAppIDs = {}
@@ -16,7 +19,7 @@ local visibleAppNames = {}
 local rulesInit = false
 local hideAllInt = false
 local hideAllExt = false
-local hideAllApps = CONFIG:get("GENERAL", "hideAllApps", 1)
+local hideAllApps = config:get("GENERAL", "hideAllApps", 1)
 
 local previousCamera = nil
 local previousDesktop = nil
@@ -38,13 +41,13 @@ local function updateVisibleApps()
 end
 
 local function initRules()
-    for i = 1, CONFIG:get("GENERAL", "count", 0) do
+    for i = 1, config:get("GENERAL", "count", 0) do
         table.insert(listOfRules, {
-            appID = CONFIG:get("RULE_" .. i, "appID", ""),
-            appName = CONFIG:get("RULE_" .. i, "appName", ""),
-            condition = CONFIG:get("RULE_" .. i, "condition", 1),
-            desktop = CONFIG:get("RULE_" .. i, "desktop", 5),
-            saved = CONFIG:get("RULE_" .. i, "saved", false),
+            appID = config:get("RULE_" .. i, "appID", ""),
+            appName = config:get("RULE_" .. i, "appName", ""),
+            condition = config:get("RULE_" .. i, "condition", 1),
+            desktop = config:get("RULE_" .. i, "desktop", 5),
+            saved = config:get("RULE_" .. i, "saved", false),
         })
 
         updateVisibleApps()
@@ -63,20 +66,20 @@ local function applyRules()
         else
             ac.setAppsHidden(hideAllExt)
         end
+    else
+        ac.setAppsHidden(false)
     end
 
     for _, rule in ipairs(listOfRules) do
         if rule.condition ~= 1 then
             if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then
                 if rule.condition == 2 then
-                    ac.accessAppWindow(rule.appID):setVisible(true)
-                elseif rule.condition == 3 then
                     ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
-                elseif rule.condition == 4 then
+                elseif rule.condition == 3 then
                     ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
                 end
-            else
-                ac.accessAppWindow(rule.appID):setVisible(true)
+            elseif rule.appID ~= nil then
+                ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
             end
         end
     end
@@ -84,20 +87,22 @@ end
 
 local function rules(dt)
     hideAllApps = ui.combo("Hide all apps:", hideAllApps, HIDE_CONDITIONS)
+    if ui.itemHovered() then ui.setTooltip("Auto-hide all apps in interior or exterior view") end
 
-    if hideAllApps == 2 then
+    if hideAllApps == 1 then
         hideAllInt = false
         hideAllExt = false
-    elseif hideAllApps == 3 then
+    elseif hideAllApps == 2 then
         hideAllInt = true
         hideAllExt = false
-    elseif hideAllApps == 4 then
+    elseif hideAllApps == 3 then
         hideAllInt = false
         hideAllExt = true
     end
 
     ui.separator()
-
+    ui.text("Custom Rules")
+    ui.separator()
     for i, rule in ipairs(listOfRules) do
         ui.labelText("", "App:")
         ui.sameLine(60)
@@ -107,6 +112,7 @@ local function rules(dt)
         else
             updateVisibleApps()
             listOfRules[i].index = ui.combo("##Rule" .. i, rule.index, visibleAppNames)
+            if ui.itemHovered() then ui.setTooltip("Choose an app window to auto-hide") end
             listOfRules[i].appID = visibleAppIDs[listOfRules[i].index]
             listOfRules[i].appName = visibleAppNames[listOfRules[i].index]
         end
@@ -115,11 +121,13 @@ local function rules(dt)
         ui.text("Hide:")
         ui.sameLine()
         listOfRules[i].condition = ui.combo("##Condition" .. i, rule.condition, HIDE_CONDITIONS)
+        if ui.itemHovered() then ui.setTooltip("Choose when you want to hide this app") end
         ui.sameLine()
 
         ui.text("On desktop:")
         ui.sameLine()
         listOfRules[i].desktop = ui.combo("##Desktop" .. i, rule.desktop, DESKTOPS)
+        if ui.itemHovered() then ui.setTooltip("Choose on which desktop you want to hide this app") end
         ui.sameLine()
 
         if ui.modernButton("##Remove" .. i, vec2(22, 22), ui.ButtonFlags.Cancel, ui.Icons.Delete) then
@@ -127,41 +135,48 @@ local function rules(dt)
                 ac.accessAppWindow(rule.appID):setVisible(true)
             end
 
-            CONFIG:set("RULE_" .. i, "appID", nil)
-            CONFIG:set("RULE_" .. i, "appName", nil)
-            CONFIG:set("RULE_" .. i, "condition", nil)
-            CONFIG:set("RULE_" .. i, "desktop", nil)
-            CONFIG:set("RULE_" .. i, "saved", nil)
+            for j = i, #listOfRules, 1 do
+                config:set("RULE_" .. j, "appID", config:get("RULE_" .. j + 1, "appID", nil))
+                config:set("RULE_" .. j, "appName", config:get("RULE_" .. j + 1, "appName", nil))
+                config:set("RULE_" .. j, "condition", config:get("RULE_" .. j + 1, "condition", nil))
+                config:set("RULE_" .. j, "desktop", config:get("RULE_" .. j + 1, "desktop", nil))
+                config:set("RULE_" .. j, "saved", config:get("RULE_" .. j + 1, "saved", nil))
+            end
 
             table.remove(listOfRules, i)
         end
-        ui.separator()
+        if ui.itemHovered() then ui.setTooltip("Remove this rule") end
     end
 
+    if #listOfRules > 0 then ui.separator() end
+
     if ui.modernButton("New Rule", vec2(112, 30), ui.ButtonFlags.None, ui.Icons.Plus) then
-        table.insert(listOfRules, { index = 0, appID = "", appName = "", condition = 1, desktop = 5, saved = false })
+        table.insert(listOfRules, { index = 1, appID = "", appName = "", condition = 1, desktop = 5, saved = false })
     end
 
     ui.sameLine()
 
-    if ui.modernButton("Preview", vec2(100, 30), ui.ButtonFlags.None, ui.Icons.Eye) then
-        applyRules()
+    if ui.modernButton("Reset", vec2(100, 30), ui.ButtonFlags.None, ui.Icons.Reset) then
+        config = ac.INIConfig.load(CONFIG_PATH)
+        listOfRules = {}
+        initRules()
     end
+    if ui.itemHovered() then ui.setTooltip("Reset rules to the last saved state") end
 
     ui.sameLine()
 
     if ui.modernButton("Save", vec2(85, 30), ui.ButtonFlags.Confirm, ui.Icons.Save) then
         applyRules()
-        CONFIG:set("GENERAL", "hideAllApps", hideAllApps)
-        CONFIG:set("GENERAL", "count", #listOfRules)
+        config:set("GENERAL", "hideAllApps", hideAllApps)
+        config:set("GENERAL", "count", #listOfRules)
         for i, rule in ipairs(listOfRules) do
-            CONFIG:set("RULE_" .. i, "appID", rule.appID)
-            CONFIG:set("RULE_" .. i, "appName", rule.appName)
-            CONFIG:set("RULE_" .. i, "condition", rule.condition)
-            CONFIG:set("RULE_" .. i, "desktop", rule.desktop)
-            CONFIG:set("RULE_" .. i, "saved", true)
+            config:set("RULE_" .. i, "appID", rule.appID)
+            config:set("RULE_" .. i, "appName", rule.appName)
+            config:set("RULE_" .. i, "condition", rule.condition)
+            config:set("RULE_" .. i, "desktop", rule.desktop)
+            config:set("RULE_" .. i, "saved", true)
         end
-        CONFIG:save(CONFIG_PATH)
+        config:save(CONFIG_PATH)
         ui.toast(ui.Icons.Confirm, "Saved!")
         listOfRules = {}
         initRules()
@@ -177,14 +192,18 @@ local function about()
     ui.text("Github repo:")
 
     ui.nextColumn()
-    ui.text(ac.INIConfig.load("manifest.ini"):get("ABOUT", "NAME ", ""))
-    ui.text(ac.INIConfig.load("manifest.ini"):get("ABOUT", "DESCRIPTION ", ""))
-    ui.text(ac.INIConfig.load("manifest.ini"):get("ABOUT", "AUTHOR ", ""))
-    ui.text(ac.INIConfig.load("manifest.ini"):get("ABOUT", "VERSION ", ""))
-    ui.textHyperlink(ac.INIConfig.load("manifest.ini"):get("ABOUT", "URL ", ""))
+    ui.text(MANIFEST:get("ABOUT", "NAME", ""))
+    ui.text(MANIFEST:get("ABOUT", "DESCRIPTION", ""))
+    ui.text(MANIFEST:get("ABOUT", "AUTHOR", ""))
+    ui.text(MANIFEST:get("ABOUT", "VERSION", ""))
+    ui.textHyperlink(MANIFEST:get("ABOUT", "URL", ""))
 end
 
 function script.windowMain(dt)
+    ui.icon("icon.png", vec2(15,15))
+    ui.sameLine()
+    ui.setNextTextBold()
+    ui.text(MANIFEST:get("ABOUT", "NAME", ""))
     ui.tabBar("main", function()
         ui.tabItem("Rules", rules)
         ui.tabItem("About", about)
