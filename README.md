@@ -17,5 +17,5 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 2. Copy the `Auto_Hide_HUD` into the `..\steamapps\common\assettocorsa\apps\lua` folder or just drag & drop the contents of the unpacked archive into your assettocorsa root
 3. In-game, open the `Auto Hide HUD` app, set up your rules, save, and enjoy! :)
 
-## Unistallation
+## Uninstallation
 Just delete the app's folder from `..\steamapps\common\assettocorsa\apps\lua`
