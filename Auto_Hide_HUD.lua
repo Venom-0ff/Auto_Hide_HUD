@@ -20,6 +20,7 @@ local rulesInit = false --- Flag to know if rules were loaded from config
 local hideAllInt = false
 local hideAllExt = false
 local hideAllApps = config:get("GENERAL", "hideAllApps", 1)
+local autoHideInPhotomode = false
 
 local previousCamera = nil  --- Used for tracking camera changes
 local previousDesktop = nil --- Used for tracking desktop changes
