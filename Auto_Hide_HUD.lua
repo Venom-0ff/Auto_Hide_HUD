@@ -1,6 +1,6 @@
 -- Auto-Hide HUD App
 -- Author: Venom
--- Version: 1.0
+-- Version: 1.02
 
 local SIM = ac.getSim()
 local UI = ac.getUI()
@@ -12,19 +12,20 @@ local CONFIG_PATH = ac.getFolder(ac.FolderID.ACApps) .. "/lua/Auto_Hide_HUD/rule
 local config = ac.INIConfig.load(CONFIG_PATH)
 
 
-local listOfRules = {}
-local visibleAppIDs = {}
-local visibleAppNames = {}
+local listOfRules = {}  --- Contains the custom rules created by the user
+local visibleAppIDs = {}    --- Contains the IDs of every currently visible app window
+local visibleAppNames = {}  --- Contains human-friedly names of every currently visible app window
 
-local rulesInit = false
+local rulesInit = false --- Flag to know if rules were loaded from config
 local hideAllInt = false
 local hideAllExt = false
 local hideAllApps = config:get("GENERAL", "hideAllApps", 1)
 
-local previousCamera = nil
-local previousDesktop = nil
-local previousDrivableCamera = nil
+local previousCamera = nil  --- Used for tracking camera changes
+local previousDesktop = nil --- Used for tracking desktop changes
+local previousDrivableCamera = nil --- Used for tracking camera changes
 
+--- Updates the lists of apps that are currently visible on the HUD
 local function updateVisibleApps()
     visibleAppIDs = {}
     visibleAppNames = {}
@@ -40,6 +41,7 @@ local function updateVisibleApps()
     end
 end
 
+--- Populates listOfRules
 local function initRules()
     for i = 1, config:get("GENERAL", "count", 0) do
         table.insert(listOfRules, {
@@ -55,11 +57,15 @@ local function initRules()
     rulesInit = true
 end
 
+--- Checks current view
+--- @return boolean @Returns true if current camera is an interior view
 local function isInteriorView()
-    return (SIM.cameraMode == 0 or SIM.driveableCameraMode == 4)
+    return SIM.cameraMode == ac.CameraMode.Cockpit or SIM.cameraMode == ac.CameraMode.Drivable and SIM.driveableCameraMode == ac.DrivableCamera.Dash
 end
 
+--- Hides and shows apps as per created rules
 local function applyRules()
+    -- Apply "hide all" rule
     if hideAllApps ~= 1 then
         if isInteriorView() then
             ac.setAppsHidden(hideAllInt)
@@ -68,34 +74,35 @@ local function applyRules()
         end
     else
         ac.setAppsHidden(false)
-    end
-
-    for _, rule in ipairs(listOfRules) do
-        if rule.condition ~= 1 then
-            if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then
-                if rule.condition == 2 then
-                    ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
-                elseif rule.condition == 3 then
-                    ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
+        -- Iterate through custom rules and apply them if necessary
+        for _, rule in ipairs(listOfRules) do
+            if rule.condition ~= 1 then
+                if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
+                    if rule.condition == 2 then -- hide in interior
+                        ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
+                    elseif rule.condition == 3 then -- hide in exterior
+                        ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
+                    end
+                elseif rule.appID ~= nil then -- restore app window on other desktops
+                    ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
                 end
-            elseif rule.appID ~= nil then
-                ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
             end
         end
     end
 end
 
+--- Renders the Rules tab and its contents
 local function rules(dt)
     hideAllApps = ui.combo("Hide all apps:", hideAllApps, HIDE_CONDITIONS)
     if ui.itemHovered() then ui.setTooltip("Auto-hide all apps in interior or exterior view") end
 
-    if hideAllApps == 1 then
+    if hideAllApps == 1 then -- off
         hideAllInt = false
         hideAllExt = false
-    elseif hideAllApps == 2 then
+    elseif hideAllApps == 2 then -- hide in interior
         hideAllInt = true
         hideAllExt = false
-    elseif hideAllApps == 3 then
+    elseif hideAllApps == 3 then -- hide in exterior
         hideAllInt = false
         hideAllExt = true
     end
@@ -106,10 +113,10 @@ local function rules(dt)
     for i, rule in ipairs(listOfRules) do
         ui.labelText("", "App:")
         ui.sameLine(60)
-        if rule.saved then
+        if rule.saved then  -- for saved rules
             ui.setNextTextBold()
             ui.labelText("", rule.appName)
-        else
+        else    -- for newly added, unsaved rules
             updateVisibleApps()
             listOfRules[i].index = ui.combo("##Rule" .. i, rule.index, visibleAppNames)
             if ui.itemHovered() then ui.setTooltip("Choose an app window to auto-hide") end
@@ -135,6 +142,7 @@ local function rules(dt)
                 ac.accessAppWindow(rule.appID):setVisible(true)
             end
 
+            -- Shift remaining rules to fill the gap after deleting one of the rules
             for j = i, #listOfRules, 1 do
                 config:set("RULE_" .. j, "appID", config:get("RULE_" .. j + 1, "appID", nil))
                 config:set("RULE_" .. j, "appName", config:get("RULE_" .. j + 1, "appName", nil))
@@ -184,6 +192,7 @@ local function rules(dt)
     end
 end
 
+--- Renders the about tab and its contents
 local function about()
     ui.columns(2)
     ui.text("App:")
@@ -200,6 +209,7 @@ local function about()
     ui.textHyperlink(MANIFEST:get("ABOUT", "URL", ""))
 end
 
+--- Renders the main window of the app
 function script.windowMain(dt)
     ui.icon("icon.png", vec2(15,15))
     ui.sameLine()
@@ -212,14 +222,17 @@ function script.windowMain(dt)
 end
 
 function script.update(dt)
+    -- load rules on session start
     if not rulesInit then initRules() end
 
+    -- Track camera changes
     if previousCamera ~= SIM.cameraMode or previousDrivableCamera ~= SIM.driveableCameraMode then
         applyRules()
     end
     previousCamera = SIM.cameraMode
     previousDrivableCamera = SIM.driveableCameraMode
 
+    -- Track desktop changes
     if previousDesktop ~= UI.currentDesktop then
         applyRules()
     end
