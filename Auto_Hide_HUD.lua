@@ -1,6 +1,6 @@
 -- Auto-Hide HUD App
 -- Author: Venom
--- Version: 1.01
+-- Version: 1.02
 
 local SIM = ac.getSim()
 local UI = ac.getUI()
@@ -20,6 +20,7 @@ local rulesInit = false --- Flag to know if rules were loaded from config
 local hideAllInt = false
 local hideAllExt = false
 local hideAllApps = config:get("GENERAL", "hideAllApps", 1)
+local autoHideInPhotomode = false
 
 local previousCamera = nil  --- Used for tracking camera changes
 local previousDesktop = nil --- Used for tracking desktop changes
@@ -56,6 +57,7 @@ local function initRules()
     end
     rulesInit = true
 end
+
 --- Checks current view
 --- @return boolean @Returns true if current camera is an interior view
 local function isInteriorView()
@@ -73,19 +75,18 @@ local function applyRules()
         end
     else
         ac.setAppsHidden(false)
-    end
-
-    -- Iterate through custom rules and apply them if necessary
-    for _, rule in ipairs(listOfRules) do
-        if rule.condition ~= 1 then
-            if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
-                if rule.condition == 2 then -- hide in interior
-                    ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
-                elseif rule.condition == 3 then -- hide in exterior
-                    ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
+        -- Iterate through custom rules and apply them if necessary
+        for _, rule in ipairs(listOfRules) do
+            if rule.condition ~= 1 then
+                if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
+                    if rule.condition == 2 then -- hide in interior
+                        ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
+                    elseif rule.condition == 3 then -- hide in exterior
+                        ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
+                    end
+                elseif rule.appID ~= nil then -- restore app window on other desktops
+                    ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
                 end
-            elseif rule.appID ~= nil then -- restore app window on other desktops
-                ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
             end
         end
     end
