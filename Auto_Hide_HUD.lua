@@ -1,6 +1,10 @@
--- Auto-Hide HUD App
--- Author: Venom
--- Version: 1.02
+--- Auto-Hide HUD App
+--- Author: Venom
+--- Version: 1.1
+--- Changelog:
+--- v1.1: Implemented auto-hiding of apps when there're no mouse movement or D-Pad inputs for x continuous seconds, implemented auto-hiding of apps in replay mods, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
+--- v1.02: Fixed auto-hide all apps option not working with apps that are also set up in custom rules in certain conditions.
+--- v1.01: Fixed incorrect behaviour when switching from dash camera to other cameras.
 
 local SIM = ac.getSim()
 local UI = ac.getUI()
@@ -12,18 +16,28 @@ local CONFIG_PATH = ac.getFolder(ac.FolderID.ACApps) .. "/lua/Auto_Hide_HUD/rule
 local config = ac.INIConfig.load(CONFIG_PATH)
 
 
-local listOfRules = {}  --- Contains the custom rules created by the user
-local visibleAppIDs = {}    --- Contains the IDs of every currently visible app window
-local visibleAppNames = {}  --- Contains human-friedly names of every currently visible app window
+local listOfRules = {}     --- Contains the custom rules created by the user
+local visibleAppIDs = {}   --- Contains the IDs of every currently visible app window
+local visibleAppNames = {} --- Contains human-friedly names of every currently visible app window
 
-local rulesInit = false --- Flag to know if rules were loaded from config
+local rulesInit = false    --- Flag to know if rules were loaded from config
 local hideAllInt = false
 local hideAllExt = false
-local hideAllApps = config:get("GENERAL", "hideAllApps", 1)
+local hideAllApps = 1
+local isHideOnTimeOut = false                            --- Time-out enabled flag
+local isHideOnTimeOutCheckbox = refbool(isHideOnTimeOut) --- For auto-hide on time-out checkbox
+local hideTimer = 0                                      --- Time-out time counter
+local hideTimeOut = 1                                    --- Time-out value set by user
+local isHUDHidden = false
+local isHideInReplays = false                            --- Hide in replays enabled flag
+local isHideInReplaysCheckbox = refbool(isHideInReplays) --- For hide in replays checkbox
+local f6AsOrig = false                                   --- Treat F6 int/ext cameras as AC
+local f6AsOrigCheckbox = refbool(f6AsOrig)               --- For F6 int/ext checkbox
 
-local previousCamera = nil  --- Used for tracking camera changes
-local previousDesktop = nil --- Used for tracking desktop changes
-local previousDrivableCamera = nil --- Used for tracking camera changes
+local previousCamera = SIM.cameraMode                    --- For tracking camera changes
+local previousDesktop = UI.currentDesktop                --- For tracking desktop changes
+local previousDrivableCamera = SIM.driveableCameraMode   --- For tracking `ac.CameraMode.Drivable` camera changes
+local previousCarCamera = SIM.carCameraIndex             --- For tracking `ac.CameraMode.Car` changes
 
 --- Updates the lists of apps that are currently visible on the HUD
 local function updateVisibleApps()
@@ -41,8 +55,17 @@ local function updateVisibleApps()
     end
 end
 
---- Populates listOfRules
+--- Populates listOfRules with values from the saved config
 local function initRules()
+    hideAllApps = config:get("GENERAL", "hideAllApps", 1)
+    isHideInReplays = config:get("GENERAL", "isHideInReplays", false)
+    isHideInReplaysCheckbox = refbool(isHideInReplays)
+    isHideOnTimeOut = config:get("GENERAL", "isHideOnTimeOut", false)
+    isHideOnTimeOutCheckbox = refbool(isHideOnTimeOut)
+    hideTimeOut = config:get("GENERAL", "hideTimeOut", 0)
+    f6AsOrig = config:get("GENERAL", "f6AsOrig", false)
+    f6AsOrigCheckbox = refbool(f6AsOrig)
+
     for i = 1, config:get("GENERAL", "count", 0) do
         table.insert(listOfRules, {
             appID = config:get("RULE_" .. i, "appID", ""),
@@ -60,30 +83,39 @@ end
 --- Checks current view
 --- @return boolean @Returns true if current camera is an interior view
 local function isInteriorView()
-    return SIM.cameraMode == ac.CameraMode.Cockpit or SIM.cameraMode == ac.CameraMode.Drivable and SIM.driveableCameraMode == ac.DrivableCamera.Dash
+    if f6AsOrig then
+        return ac.isInteriorView() or SIM.cameraMode == ac.CameraMode.Cockpit or
+            SIM.cameraMode == ac.CameraMode.Drivable and SIM.driveableCameraMode == ac.DrivableCamera.Dash
+    else
+        return SIM.cameraMode == ac.CameraMode.Cockpit or
+            SIM.cameraMode == ac.CameraMode.Drivable and SIM.driveableCameraMode == ac.DrivableCamera.Dash
+    end
 end
 
 --- Hides and shows apps as per created rules
 local function applyRules()
-    -- Apply "hide all" rule
+    -- Apply "auto-hide all" rule
     if hideAllApps ~= 1 then
         if isInteriorView() then
             ac.setAppsHidden(hideAllInt)
+            isHUDHidden = hideAllInt
         else
             ac.setAppsHidden(hideAllExt)
+            isHUDHidden = hideAllExt
         end
     else
         ac.setAppsHidden(false)
+        isHUDHidden = false
         -- Iterate through custom rules and apply them if necessary
         for _, rule in ipairs(listOfRules) do
             if rule.condition ~= 1 then
                 if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
-                    if rule.condition == 2 then -- hide in interior
+                    if rule.condition == 2 then                                    -- hide in interior
                         ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
-                    elseif rule.condition == 3 then -- hide in exterior
+                    elseif rule.condition == 3 then                                -- hide in exterior
                         ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
                     end
-                elseif rule.appID ~= nil then -- restore app window on other desktops
+                elseif rule.appID ~= nil and rule.appID ~= "" then -- restore app window on other desktops
                     ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
                 end
             end
@@ -91,8 +123,37 @@ local function applyRules()
     end
 end
 
+--- Hides HUD after hideTimeOut seconds if mouse is not moved or D-Pad is not pressed
+--- @param dt number @Time passed since last `update()` call, in seconds.
+local function timeOut(dt)
+    if math.abs(ui.mouseDelta().x + ui.mouseDelta().y) > 2.2 or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadUp) or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadDown) or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadLeft) or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadRight) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadUp) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadDown) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadLeft) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadRight)
+    then
+        hideTimer = 0
+        if isHUDHidden then
+            ac.setAppsHidden(false)
+            isHUDHidden = false
+        end
+    end
+
+    if hideTimer < hideTimeOut then hideTimer = hideTimer + dt end
+
+    if not isHUDHidden and hideTimeOut > 0 and hideTimer >= hideTimeOut then
+        ac.setAppsHidden(true)
+        isHUDHidden = true
+    end
+end
+
 --- Renders the Rules tab and its contents
-local function rules(dt)
+local function rules()
+    -- hide all apps options
     hideAllApps = ui.combo("Hide all apps:", hideAllApps, HIDE_CONDITIONS)
     if ui.itemHovered() then ui.setTooltip("Auto-hide all apps in interior or exterior view") end
 
@@ -107,16 +168,43 @@ local function rules(dt)
         hideAllExt = true
     end
 
+    ui.sameLine()
+    ui.checkbox("Auto-hide all apps in replays", isHideInReplaysCheckbox)
+    if ui.itemHovered() then
+        ui.setTooltip(
+            "Off - Follow the main setting in replays\nOn - Override the main setting in replays")
+    end
+
+    ui.sameLine()
+    ui.checkbox("Auto-hide all apps on idle inputs", isHideOnTimeOutCheckbox)
+    if ui.itemHovered() then
+        ui.setTooltip(
+            "Auto-hide all apps if there's no mouse movement and no inputs on D-Pad for x continuos seconds.\n\nNOTE: THIS OPTION OVERRIDES ALL OTHER RULES.\nAlso, try to not switch desktops when using this option, because their apps may get shuffled."
+        )
+    end
+    if isHideOnTimeOutCheckbox.value then
+        ui.sameLine()
+        hideTimeOut = ui.slider("##timeOut", hideTimeOut, 1, 6, 'Time-Out, sec: %0.1f')
+        if ui.itemHovered() then ui.setTooltip("Amount of seconds to wait before hiding all apps") end
+    end
+
+    ui.checkbox("Treat F6 interior/exterior cameras in original AC style", f6AsOrigCheckbox)
+    if ui.itemHovered() then
+        ui.setTooltip(
+            "Original AC style: if there's interior audio, then it's an interior view, otherwise it's an exterior view")
+    end
+
+    -- per app custom rules
     ui.separator()
-    ui.text("Custom Rules")
+    ui.setNextTextBold()
+    ui.text("Per-App Custom Rules")
     ui.separator()
     for i, rule in ipairs(listOfRules) do
         ui.labelText("", "App:")
         ui.sameLine(60)
-        if rule.saved then  -- for saved rules
-            ui.setNextTextBold()
+        if rule.saved then -- for saved rules
             ui.labelText("", rule.appName)
-        else    -- for newly added, unsaved rules
+        else               -- for newly added, unsaved rules
             updateVisibleApps()
             listOfRules[i].index = ui.combo("##Rule" .. i, rule.index, visibleAppNames)
             if ui.itemHovered() then ui.setTooltip("Choose an app window to auto-hide") end
@@ -138,7 +226,7 @@ local function rules(dt)
         ui.sameLine()
 
         if ui.modernButton("##Remove" .. i, vec2(22, 22), ui.ButtonFlags.Cancel, ui.Icons.Delete) then
-            if rule.appID ~= nil then
+            if rule.appID ~= nil and rule.appID ~= "" and (rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5) then
                 ac.accessAppWindow(rule.appID):setVisible(true)
             end
 
@@ -175,8 +263,16 @@ local function rules(dt)
     ui.sameLine()
 
     if ui.modernButton("Save", vec2(85, 30), ui.ButtonFlags.Confirm, ui.Icons.Save) then
+        isHideInReplays = isHideInReplaysCheckbox.value
+        isHideOnTimeOut = isHideOnTimeOutCheckbox.value
+        f6AsOrig = f6AsOrigCheckbox.value
         applyRules()
         config:set("GENERAL", "hideAllApps", hideAllApps)
+        config:set("GENERAL", "isHideInReplays", isHideInReplays)
+        config:set("GENERAL", "isHideOnTimeOut", isHideOnTimeOut)
+        config:set("GENERAL", "hideTimeOut", hideTimeOut)
+        config:set("GENERAL", "f6AsOrig", f6AsOrig)
+
         config:set("GENERAL", "count", #listOfRules)
         for i, rule in ipairs(listOfRules) do
             config:set("RULE_" .. i, "appID", rule.appID)
@@ -185,8 +281,10 @@ local function rules(dt)
             config:set("RULE_" .. i, "desktop", rule.desktop)
             config:set("RULE_" .. i, "saved", true)
         end
+
         config:save(CONFIG_PATH)
         ui.toast(ui.Icons.Confirm, "Saved!")
+
         listOfRules = {}
         initRules()
     end
@@ -195,6 +293,7 @@ end
 --- Renders the about tab and its contents
 local function about()
     ui.columns(2)
+    ui.setColumnWidth(0, 120)
     ui.text("App:")
     ui.text("Description:")
     ui.text("Author:")
@@ -210,8 +309,9 @@ local function about()
 end
 
 --- Renders the main window of the app
+--- @param dt number @Time passed since last `update()` call, in seconds.
 function script.windowMain(dt)
-    ui.icon("icon.png", vec2(15,15))
+    ui.icon("icon.png", vec2(15, 15))
     ui.sameLine()
     ui.setNextTextBold()
     ui.text(MANIFEST:get("ABOUT", "NAME", ""))
@@ -222,19 +322,35 @@ function script.windowMain(dt)
 end
 
 function script.update(dt)
-    -- load rules on session start
+    -- Load rules on session start
     if not rulesInit then initRules() end
 
-    -- Track camera changes
-    if previousCamera ~= SIM.cameraMode or previousDrivableCamera ~= SIM.driveableCameraMode then
-        applyRules()
-    end
-    previousCamera = SIM.cameraMode
-    previousDrivableCamera = SIM.driveableCameraMode
+    -- Auto-hide after time-out
+    if isHideOnTimeOut then
+        timeOut(dt)
+    else
+        -- Detect camera changes
+        if previousCamera ~= SIM.cameraMode or previousDrivableCamera ~= SIM.driveableCameraMode or previousCarCamera ~= SIM.carCameraIndex then
+            applyRules()
+        end
+        previousCamera = SIM.cameraMode
+        previousDrivableCamera = SIM.driveableCameraMode
+        previousCarCamera = SIM.carCameraIndex
 
-    -- Track desktop changes
-    if previousDesktop ~= UI.currentDesktop then
-        applyRules()
+        -- Detect desktop changes
+        if previousDesktop ~= UI.currentDesktop then
+            applyRules()
+        end
+        previousDesktop = UI.currentDesktop
+
+        -- Detect replays
+        if isHideInReplays then
+            if not isHUDHidden and ac.isInReplayMode() then
+                ac.setAppsHidden(true)
+                isHUDHidden = true
+            elseif isHUDHidden and not ac.isInReplayMode() then
+                applyRules()
+            end
+        end
     end
-    previousDesktop = UI.currentDesktop
 end
