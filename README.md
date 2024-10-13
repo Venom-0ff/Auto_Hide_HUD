@@ -13,6 +13,11 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 [![Auto Hide HUD demo](https://img.youtube.com/vi/-D__XKbmtaQ/0.jpg)](https://youtu.be/-D__XKbmtaQ)
 
 ## Changelog
+  - v1.1
+    - Implemented auto-hiding of apps when there's no mouse movement or D-Pad inputs for x continuous seconds
+    - Implemented auto-hiding of all apps in replay mode
+    - Added option to recognize F6 int/ext cameras
+    - Fixed 'remove' button restoring apps on the wrong desktops.
   - v1.02
     - Fixed 'Hide all apps' option not working with apps that are also used in custom rules in certain conditions.
   - v1.01
