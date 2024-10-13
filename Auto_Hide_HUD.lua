@@ -2,7 +2,7 @@
 --- Author: Venom
 --- Version: 1.1
 --- Changelog:
---- v1.1: Implemented auto-hiding of apps when there're no mouse movement or D-Pad inputs for x continuos seconds, implemented auto-hiding of apps in replay mods, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
+--- v1.1: Implemented auto-hiding of apps when there're no mouse movement or D-Pad inputs for x continuous seconds, implemented auto-hiding of apps in replay mods, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
 --- v1.02: Fixed auto-hide all apps option not working with apps that are also set up in custom rules in certain conditions.
 --- v1.01: Fixed incorrect behaviour when switching from dash camera to other cameras.
 
