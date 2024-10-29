@@ -1,7 +1,8 @@
 --- Auto-Hide HUD App
 --- Author: Venom
---- Version: 1.1
+--- Version: 1.2
 --- Changelog:
+--- v1.2: Implemented auto-hiding of virtual mirror. Added validation for manual inputs into time-out slider.
 --- v1.1: Implemented auto-hiding of apps when there's no mouse movement or D-Pad inputs for x continuous seconds, implemented auto-hiding of apps in replay mode, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
 --- v1.02: Fixed auto-hide all apps option not working with apps that are also set up in custom rules in certain conditions.
 --- v1.01: Fixed incorrect behaviour when switching from dash camera to other cameras.
@@ -10,20 +11,24 @@ local SIM = ac.getSim()
 local UI = ac.getUI()
 local DESKTOPS = { "1", "2", "3", "4", "All" }
 local HIDE_CONDITIONS = { "Off", "In interior views", "In exterior views" }
+local HIDE_MIRROR_CONDITIONS = { "Off", "In interior views", "Always" }
+local MIN_TIMEOUT_VALUE = 1.0    --- For time-out slider min value
+local MAX_TIMEOUT_VALUE = 10.0   --- For time-out slider max value
+local MOUSE_DISTANCE_MOVED = 2.2 --- Distance the mouse should be moved for the "auto-hide on idle" rule to show the ui
 
 local MANIFEST = ac.INIConfig.load("manifest.ini")
 local CONFIG_PATH = ac.getFolder(ac.FolderID.ACApps) .. "/lua/Auto_Hide_HUD/rules.ini"
 local config = ac.INIConfig.load(CONFIG_PATH)
 
 
-local listOfRules = {}     --- Contains the custom rules created by the user
-local visibleAppIDs = {}   --- Contains the IDs of every currently visible app window
-local visibleAppNames = {} --- Contains human-friedly names of every currently visible app window
+local listOfRules = {}                                   --- Contains the custom rules created by the user
+local visibleAppIDs = {}                                 --- Contains the IDs of every currently visible app window
+local visibleAppNames = {}                               --- Contains human-friedly names of every currently visible app window
 
-local rulesInit = false    --- Flag to know if rules were loaded from config
-local hideAllInt = false
-local hideAllExt = false
-local hideAllApps = 1
+local rulesInit = false                                  --- Flag to know if rules were loaded from config
+local hideAllInt = false                                 --- For Auto-hide all apps in interior
+local hideAllExt = false                                 --- For Auto-hide all apps in exterior
+local hideAllApps = 1                                    --- For Auto-hide all apps dropdown
 local isHideOnTimeOut = false                            --- Time-out enabled flag
 local isHideOnTimeOutCheckbox = refbool(isHideOnTimeOut) --- For auto-hide on time-out checkbox
 local hideTimer = 0                                      --- Time-out time counter
@@ -33,6 +38,7 @@ local isHideInReplays = false                            --- Hide in replays ena
 local isHideInReplaysCheckbox = refbool(isHideInReplays) --- For hide in replays checkbox
 local f6AsOrig = false                                   --- Treat F6 int/ext cameras as AC
 local f6AsOrigCheckbox = refbool(f6AsOrig)               --- For F6 int/ext checkbox
+local hideMirror = refnumber(1)                          --- For auto-hide virtual mirror dropdown
 
 local previousCamera = SIM.cameraMode                    --- For tracking camera changes
 local previousDesktop = UI.currentDesktop                --- For tracking desktop changes
@@ -65,6 +71,7 @@ local function initRules()
     hideTimeOut = config:get("GENERAL", "hideTimeOut", 0)
     f6AsOrig = config:get("GENERAL", "f6AsOrig", false)
     f6AsOrigCheckbox = refbool(f6AsOrig)
+    hideMirror = refnumber(config:get("GENERAL", "hideMirror", 1))
 
     for i = 1, config:get("GENERAL", "count", 0) do
         table.insert(listOfRules, {
@@ -78,6 +85,28 @@ local function initRules()
         updateVisibleApps()
     end
     rulesInit = true
+end
+
+--- Saves rules to the config
+local function saveRules()
+    config:set("GENERAL", "hideAllApps", hideAllApps)
+    config:set("GENERAL", "isHideInReplays", isHideInReplays)
+    config:set("GENERAL", "isHideOnTimeOut", isHideOnTimeOut)
+    config:set("GENERAL", "hideTimeOut", hideTimeOut)
+    config:set("GENERAL", "f6AsOrig", f6AsOrig)
+    config:set("GENERAL", "hideMirror", hideMirror.value)
+
+    config:set("GENERAL", "count", #listOfRules)
+    for i, rule in ipairs(listOfRules) do
+        config:set("RULE_" .. i, "appID", rule.appID)
+        config:set("RULE_" .. i, "appName", rule.appName)
+        config:set("RULE_" .. i, "condition", rule.condition)
+        config:set("RULE_" .. i, "desktop", rule.desktop)
+        config:set("RULE_" .. i, "saved", true)
+    end
+
+    config:save(CONFIG_PATH)
+    ui.toast(ui.Icons.Confirm, "Saved!")
 end
 
 --- Checks current view
@@ -121,12 +150,24 @@ local function applyRules()
             end
         end
     end
+
+    -- hide/show virtual mirror
+    if SIM.isVirtualMirrorActive and hideMirror.value ~= 1 then
+        if hideMirror.value == 2 then
+            ac.redirectVirtualMirror(isInteriorView())
+        end
+        if hideMirror.value == 3 then
+            ac.redirectVirtualMirror(true)
+        end
+    elseif hideMirror.value == 1 then
+        ac.redirectVirtualMirror(false)
+    end
 end
 
 --- Hides HUD after hideTimeOut seconds if mouse is not moved or D-Pad is not pressed
 --- @param dt number @Time passed since last `update()` call, in seconds.
 local function timeOut(dt)
-    if math.abs(ui.mouseDelta().x + ui.mouseDelta().y) > 2.2 or
+    if math.abs(ui.mouseDelta().x + ui.mouseDelta().y) > MOUSE_DISTANCE_MOVED or
         ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadUp) or
         ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadDown) or
         ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadLeft) or
@@ -153,8 +194,8 @@ end
 
 --- Renders the Rules tab and its contents
 local function rules()
-    -- hide all apps options
-    hideAllApps = ui.combo("Hide all apps:", hideAllApps, HIDE_CONDITIONS)
+    -- auto-hide all apps option
+    hideAllApps = ui.combo("Auto-hide all apps", hideAllApps, HIDE_CONDITIONS)
     if ui.itemHovered() then ui.setTooltip("Auto-hide all apps in interior or exterior view") end
 
     if hideAllApps == 1 then -- off
@@ -168,30 +209,52 @@ local function rules()
         hideAllExt = true
     end
 
-    ui.sameLine()
+    -- auto-hide virtual mirror option
+    ui.sameLine(0, 90)
+    ui.combo("Auto-hide virtual mirror", hideMirror, HIDE_MIRROR_CONDITIONS)
+    if ui.itemHovered() then ui.setTooltip("Works online!") end
+
+    -- auto-hide all apps in replays option
     ui.checkbox("Auto-hide all apps in replays", isHideInReplaysCheckbox)
     if ui.itemHovered() then
         ui.setTooltip(
             "Off - Follow the main setting in replays\nOn - Override the main setting in replays")
     end
 
-    ui.sameLine()
+    -- auto-hide all apps on idle option
+    ui.sameLine(0, 10)
     ui.checkbox("Auto-hide all apps on idle inputs", isHideOnTimeOutCheckbox)
     if ui.itemHovered() then
         ui.setTooltip(
-            "Auto-hide all apps if there's no mouse movement and no inputs on D-Pad for x continuos seconds.\n\nNOTE: THIS OPTION OVERRIDES ALL OTHER RULES.\nAlso, try to not switch desktops when using this option, because their apps may get shuffled."
+            "Auto-hide all apps if there's no mouse movement and no inputs on D-Pad for x continuos seconds.\n\nNOTE: THIS OPTION OVERRIDES ALL OTHER RULES.\nAlso, try to not switch desktops when using this option, because the apps\' windows may get shuffled."
         )
     end
+
+    -- show timeout slider
     if isHideOnTimeOutCheckbox.value then
+        local valid
         ui.sameLine()
-        hideTimeOut = ui.slider("##timeOut", hideTimeOut, 1, 6, 'Time-Out, sec: %0.1f')
-        if ui.itemHovered() then ui.setTooltip("Amount of seconds to wait before hiding all apps") end
+        valid = ui.slider("##timeOut", hideTimeOut, MIN_TIMEOUT_VALUE, MAX_TIMEOUT_VALUE, 'Time-Out, sec: %0.1f')
+
+        -- validate manual input
+        if valid >= MIN_TIMEOUT_VALUE then
+            hideTimeOut = valid
+        else
+            hideTimeOut = MAX_TIMEOUT_VALUE
+        end
+
+        if ui.itemHovered() then
+            ui.setTooltip(
+                "Amount of seconds to wait before hiding all apps.\n\nTo use values greater than " ..
+                tostring(MAX_TIMEOUT_VALUE) .. " seconds you can CTRL + Click on this slider for manual input.")
+        end
     end
 
+    -- F6 cameras behaviour option
     ui.checkbox("Treat F6 interior/exterior cameras in original AC style", f6AsOrigCheckbox)
     if ui.itemHovered() then
         ui.setTooltip(
-            "Original AC style: if there's interior audio, then it's an interior view, otherwise it's an exterior view")
+            "Original AC style: if there's interior audio, then it's an interior view, otherwise it's an exterior view.")
     end
 
     -- per app custom rules
@@ -267,23 +330,8 @@ local function rules()
         isHideOnTimeOut = isHideOnTimeOutCheckbox.value
         f6AsOrig = f6AsOrigCheckbox.value
         applyRules()
-        config:set("GENERAL", "hideAllApps", hideAllApps)
-        config:set("GENERAL", "isHideInReplays", isHideInReplays)
-        config:set("GENERAL", "isHideOnTimeOut", isHideOnTimeOut)
-        config:set("GENERAL", "hideTimeOut", hideTimeOut)
-        config:set("GENERAL", "f6AsOrig", f6AsOrig)
 
-        config:set("GENERAL", "count", #listOfRules)
-        for i, rule in ipairs(listOfRules) do
-            config:set("RULE_" .. i, "appID", rule.appID)
-            config:set("RULE_" .. i, "appName", rule.appName)
-            config:set("RULE_" .. i, "condition", rule.condition)
-            config:set("RULE_" .. i, "desktop", rule.desktop)
-            config:set("RULE_" .. i, "saved", true)
-        end
-
-        config:save(CONFIG_PATH)
-        ui.toast(ui.Icons.Confirm, "Saved!")
+        saveRules()
 
         listOfRules = {}
         initRules()
