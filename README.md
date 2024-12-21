@@ -7,7 +7,7 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 - Auto-hide all apps in interior or exterior view cameras.
 - Auto-hide all apps in replays.
 - Auto-hide virtual mirror (works even on servers with forced virtual mirror!).
-- Auto-hide all apps if there's no mouse movement or D-Pad inputs for a set amount of seconds.
+- Auto-hide all or individual apps if there's no mouse movement or D-Pad inputs for a set amount of seconds.
 - Create custom rules to control each app window on your HUD individually.
 - Choose which desktop you want the rule to work on.
 - Save, edit, and delete your custom rules - everything is saved in the `rules.ini` config file.
