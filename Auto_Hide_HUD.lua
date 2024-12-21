@@ -1,7 +1,8 @@
 --- Auto-Hide HUD App
 --- Author: Venom
---- Version: 1.2
+--- Version: 1.3
 --- Changelog:
+--- v1.3: Implemented timer based hiding for individual apps, updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
 --- v1.2: Implemented auto-hiding of virtual mirror. Added validation for manual inputs into time-out slider.
 --- v1.1: Implemented auto-hiding of apps when there's no mouse movement or D-Pad inputs for x continuous seconds, implemented auto-hiding of apps in replay mode, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
 --- v1.02: Fixed auto-hide all apps option not working with apps that are also set up in custom rules in certain conditions.
@@ -29,8 +30,8 @@ local appsOnTimer = {}                                   --- IDs of apps that ha
 local rulesInit = false                                  --- Flag to know if rules were loaded from config
 local hideAllInt = false                                 --- For Auto-hide all apps in interior
 local hideAllExt = false                                 --- For Auto-hide all apps in exterior
+local isHideOnTimeOut = false                            --- For Auto-hide all apps on timer
 local hideAllApps = refnumber(1)                         --- For Auto-hide all apps dropdown
-local isHideOnTimeOut = false                            --- Time-out enabled flag
 local hideTimer = 0                                      --- Time-out time counter
 local hideTimeOut = 1                                    --- Time-out value set by user
 local isHUDHidden = false
@@ -67,7 +68,6 @@ local function initRules()
     hideAllApps = refnumber(config:get("GENERAL", "hideAllApps", 1))
     isHideInReplays = config:get("GENERAL", "isHideInReplays", false)
     isHideInReplaysCheckbox = refbool(isHideInReplays)
-    isHideOnTimeOut = config:get("GENERAL", "isHideOnTimeOut", false)
     hideTimeOut = config:get("GENERAL", "hideTimeOut", 0)
     f6AsOrig = config:get("GENERAL", "f6AsOrig", false)
     f6AsOrigCheckbox = refbool(f6AsOrig)
@@ -92,7 +92,6 @@ end
 local function saveRules()
     config:set("GENERAL", "hideAllApps", hideAllApps.value)
     config:set("GENERAL", "isHideInReplays", isHideInReplays)
-    config:set("GENERAL", "isHideOnTimeOut", isHideOnTimeOut)
     config:set("GENERAL", "hideTimeOut", hideTimeOut)
     config:set("GENERAL", "f6AsOrig", f6AsOrig)
     config:set("GENERAL", "hideMirror", hideMirror.value)
@@ -158,17 +157,17 @@ local function applyRules()
         isHUDHidden = false
         -- Iterate through custom rules and apply them if necessary
         for _, rule in ipairs(listOfRules) do
-            if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then     -- if correct desktop
+            if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
                 if rule.condition == 1 then
                     ac.accessAppWindow(rule.appID):setVisible(true)
-                elseif rule.condition == 2 then     -- hide in interior
+                elseif rule.condition == 2 then -- hide in interior
                     ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
-                elseif rule.condition == 3 then     -- hide in exterior
+                elseif rule.condition == 3 then -- hide in exterior
                     ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
-                elseif rule.condition == 4 then     -- hide on timer
+                elseif rule.condition == 4 then -- hide on timer
                     table.insert(appsOnTimer, rule.appID)
                 end
-            elseif rule.appID ~= nil and rule.appID ~= "" then     -- restore app window on other desktops
+            elseif rule.appID ~= nil and rule.appID ~= "" then -- restore app window on other desktops
                 ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
             end
         end
@@ -375,8 +374,10 @@ local function rules()
     autoHideAll()
     ui.sameLine(0, 39)
     autoHideInReplays()
-    ui.sameLine(0, 30)
-    timeOutSlider()
+    if #table.filter(listOfRules, function(rule) return rule.condition == 4 end) > 0 or isHideOnTimeOut then
+        ui.sameLine(0, 30)
+        timeOutSlider()
+    end
 
     autoHideVMirror()
     ui.sameLine()

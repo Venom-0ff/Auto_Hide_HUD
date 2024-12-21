@@ -1,7 +1,7 @@
 # <img src="icon.png" width="27"> Auto-Hide HUD for Assetto Corsa
 Allows you to auto-hide any app on your HUD with custom rules based on the interior/exterior view and selected desktop.
 
-![v1.2](https://github.com/user-attachments/assets/f5ea9b3d-4477-4b3e-a243-a69c28e8082d)
+![v1.3](https://github.com/user-attachments/assets/f5ea9b3d-4477-4b3e-a243-a69c28e8082d)
 
 ## Features
 - Auto-hide all apps in interior or exterior view cameras.
@@ -16,6 +16,9 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 [![Auto Hide HUD demo](https://img.youtube.com/vi/-D__XKbmtaQ/0.jpg)](https://youtu.be/-D__XKbmtaQ)
 
 ## Changelog
+  - v1.3
+    - Implemented timer based hiding for individual apps.
+    - Updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
   - v1.2
     - Implemented auto-hiding of virtual mirror.
     - Added validation for manual inputs into time-out slider.
