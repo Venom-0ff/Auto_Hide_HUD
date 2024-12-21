@@ -1,9 +1,7 @@
 --- Auto-Hide HUD App
 --- Author: Venom
 --- Version: 1.3
---- Version: 1.3
 --- Changelog:
---- v1.3: Implemented timer based hiding for individual apps, updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
 --- v1.3: Implemented timer based hiding for individual apps, updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
 --- v1.2: Implemented auto-hiding of virtual mirror. Added validation for manual inputs into time-out slider.
 --- v1.1: Implemented auto-hiding of apps when there's no mouse movement or D-Pad inputs for x continuous seconds, implemented auto-hiding of apps in replay mode, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
@@ -32,7 +30,6 @@ local appsOnTimer = {}                                   --- IDs of apps that ha
 local rulesInit = false                                  --- Flag to know if rules were loaded from config
 local hideAllInt = false                                 --- For Auto-hide all apps in interior
 local hideAllExt = false                                 --- For Auto-hide all apps in exterior
-local isHideOnTimeOut = false                            --- For Auto-hide all apps on timer
 local isHideOnTimeOut = false                            --- For Auto-hide all apps on timer
 local hideAllApps = refnumber(1)                         --- For Auto-hide all apps dropdown
 local hideTimer = 0                                      --- Time-out time counter
