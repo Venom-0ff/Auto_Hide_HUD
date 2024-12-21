@@ -10,7 +10,7 @@
 local SIM = ac.getSim()
 local UI = ac.getUI()
 local DESKTOPS = { "1", "2", "3", "4", "All" }
-local HIDE_CONDITIONS = { "Off", "In interior views", "In exterior views" }
+local HIDE_CONDITIONS = { "Off", "In interior views", "In exterior views", "On Timer" }
 local HIDE_MIRROR_CONDITIONS = { "Off", "In cockpit view only", "In interior views", "In exterior views", "Always" }
 local MIN_TIMEOUT_VALUE = 1.0    --- For time-out slider min value
 local MAX_TIMEOUT_VALUE = 10.0   --- For time-out slider max value
@@ -24,6 +24,7 @@ local config = ac.INIConfig.load(CONFIG_PATH)
 local listOfRules = {}                                   --- Contains the custom rules created by the user
 local visibleAppIDs = {}                                 --- Contains the IDs of every currently visible app window
 local visibleAppNames = {}                               --- Contains human-friedly names of every currently visible app window
+local appsOnTimer = {}                                   --- IDs of apps that have their hide condition set to "On Timer"
 
 local rulesInit = false                                  --- Flag to know if rules were loaded from config
 local hideAllInt = false                                 --- For Auto-hide all apps in interior
@@ -39,6 +40,7 @@ local isHideInReplaysCheckbox = refbool(isHideInReplays) --- For hide in replays
 local f6AsOrig = false                                   --- Treat F6 int/ext cameras as AC
 local f6AsOrigCheckbox = refbool(f6AsOrig)               --- For F6 int/ext checkbox
 local hideMirror = refnumber(1)                          --- For auto-hide virtual mirror dropdown
+local appsOnTimerHidden = false
 
 local previousCamera = SIM.cameraMode                    --- For tracking camera changes
 local previousDesktop = UI.currentDesktop                --- For tracking desktop changes
@@ -81,9 +83,10 @@ local function initRules()
             desktop = config:get("RULE_" .. i, "desktop", 5),
             saved = config:get("RULE_" .. i, "saved", false),
         })
-
-        updateVisibleApps()
     end
+
+    appsOnTimer = table.filter(listOfRules, function(rule) return rule.condition == 4 end)
+    updateVisibleApps()
     rulesInit = true
 end
 
@@ -163,6 +166,8 @@ local function applyRules()
                         ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
                     elseif rule.condition == 3 then                                -- hide in exterior
                         ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
+                    elseif rule.condition == 4 then                                -- hide on timer
+                        table.insert(appsOnTimer, rule.appID)
                     end
                 elseif rule.appID ~= nil and rule.appID ~= "" then -- restore app window on other desktops
                     ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
@@ -209,6 +214,46 @@ local function timeOut(dt)
     end
 end
 
+--- Hides apps that were set to "Hide On Timer" after hideTimeOut seconds if mouse is not moved or D-Pad is not pressed
+--- @param dt number @Time passed since last `update()` call, in seconds.
+local function timeOut2(dt)
+    -- detect mouse movement, clicks, CTRL pressed or D-Pad inputs
+    if math.abs(ui.mouseDelta().x + ui.mouseDelta().y) > MOUSE_DISTANCE_MOVED or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadUp) or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadDown) or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadLeft) or
+        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadRight) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadUp) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadDown) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadLeft) or
+        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadRight) or
+        ac.isKeyDown(ui.KeyIndex.Control) or
+        ac.isKeyDown(ui.KeyIndex.LeftButton) or
+        ac.isKeyDown(ui.KeyIndex.RightButton)
+    then
+        hideTimer = 0
+        if appsOnTimerHidden then
+            table.forEach(appsOnTimer,
+                function (value, _)
+                    ac.accessAppWindow(value.appID):setVisible(true)
+                end
+            )
+            appsOnTimerHidden = false
+        end
+    end
+
+    -- increment hideTimer
+    if hideTimer < hideTimeOut then hideTimer = hideTimer + dt end
+
+    -- hide apps after timer reaches time-out value
+    if not appsOnTimerHidden and hideTimer >= hideTimeOut then
+        table.forEach(appsOnTimer, function (value, _)
+            ac.accessAppWindow(value.appID):setVisible(false)
+            end)
+        appsOnTimerHidden = true
+    end
+end
+
 --- Renders the Rules tab and its contents
 local function rules()
     -- auto-hide all apps option
@@ -248,7 +293,7 @@ local function rules()
     end
 
     -- show timeout slider
-    if isHideOnTimeOutCheckbox.value then
+    -- if isHideOnTimeOutCheckbox.value then
         local valid
         ui.sameLine()
         valid = ui.slider("##timeOut", hideTimeOut, MIN_TIMEOUT_VALUE, MAX_TIMEOUT_VALUE, 'Time-Out, sec: %0.1f')
@@ -265,7 +310,7 @@ local function rules()
                 "Amount of seconds to wait before hiding all apps.\n\nTo use values greater than " ..
                 tostring(MAX_TIMEOUT_VALUE) .. " seconds you can CTRL + Click on this slider for manual input.")
         end
-    end
+    -- end
 
     -- F6 cameras behaviour option
     ui.checkbox("Treat F6 interior/exterior cameras in original AC style", f6AsOrigCheckbox)
@@ -395,6 +440,10 @@ function script.update(dt)
         hideVirtualMirror()
         timeOut(dt)
     else
+        if #appsOnTimer > 0 then
+            timeOut2(dt)
+        end
+
         -- Detect camera changes
         if previousCamera ~= SIM.cameraMode or previousDrivableCamera ~= SIM.driveableCameraMode or previousCarCamera ~= SIM.carCameraIndex then
             applyRules()
