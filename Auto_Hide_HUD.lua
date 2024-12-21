@@ -1,7 +1,8 @@
 --- Auto-Hide HUD App
 --- Author: Venom
---- Version: 1.3
+--- Version: 1.31
 --- Changelog:
+--- v1.31: Fixed start up bug caused by apps set to timer-based hiding.
 --- v1.3: Implemented timer based hiding for individual apps, updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
 --- v1.2: Implemented auto-hiding of virtual mirror. Added validation for manual inputs into time-out slider.
 --- v1.1: Implemented auto-hiding of apps when there's no mouse movement or D-Pad inputs for x continuous seconds, implemented auto-hiding of apps in replay mode, added option to recognize F6 int/ext cameras, fixed 'remove' button restoring apps on the wrong desktops.
@@ -84,7 +85,6 @@ local function initRules()
         })
     end
 
-    appsOnTimer = table.filter(listOfRules, function(rule) return rule.condition == 4 end)
     updateVisibleApps()
     rulesInit = true
 end
@@ -459,7 +459,7 @@ end
 function script.update(dt)
     -- Load rules on session start
     if not rulesInit then initRules() end
-
+    appsOnTimer = table.filter(listOfRules, function(rule) return rule.condition == 4 end)
     -- Auto-hide after time-out
     if isHideOnTimeOut then
         hideVirtualMirror()
