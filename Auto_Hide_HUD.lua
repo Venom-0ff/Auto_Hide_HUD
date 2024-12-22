@@ -1,7 +1,8 @@
 --- Auto-Hide HUD App
 --- Author: Venom
---- Version: 1.31
+--- Version: 1.32
 --- Changelog:
+--- v1.32: Fixed the bug from 1.31 where apps set to timer-based hiding starting to hide before pressing the Save button.
 --- v1.31: Fixed start up bug caused by apps set to timer-based hiding.
 --- v1.3: Implemented timer based hiding for individual apps, updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
 --- v1.2: Implemented auto-hiding of virtual mirror. Added validation for manual inputs into time-out slider.
@@ -163,6 +164,7 @@ local function applyRules()
         ac.setAppsHidden(false)
         isHUDHidden = false
         isHideOnTimeOut = false
+        appsOnTimer = table.filter(listOfRules, function(rule) return rule.condition == 4 end)
         -- Iterate through custom rules and apply them if necessary
         for _, rule in ipairs(listOfRules) do
             if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
@@ -172,8 +174,6 @@ local function applyRules()
                     ac.accessAppWindow(rule.appID):setVisible(not isInteriorView())
                 elseif rule.condition == 3 then -- hide in exterior
                     ac.accessAppWindow(rule.appID):setVisible(isInteriorView())
-                elseif rule.condition == 4 then -- hide on timer
-                    table.insert(appsOnTimer, rule.appID)
                 end
             elseif rule.appID ~= nil and rule.appID ~= "" then -- restore app window on other desktops
                 ac.accessAppWindow(rule.appID):setVisible(ac.accessAppWindow(rule.appID):visible())
@@ -252,9 +252,11 @@ local function timeOutIndividual(dt)
 
     -- hide apps after timer reaches time-out value
     if not appsOnTimerHidden and hideTimer >= hideTimeOut then
-        table.forEach(appsOnTimer, function(value, _)
-            ac.accessAppWindow(value.appID):setVisible(false)
-        end)
+        table.forEach(appsOnTimer,
+            function(value, _)
+                ac.accessAppWindow(value.appID):setVisible(false)
+            end
+        )
         appsOnTimerHidden = true
     end
 end
@@ -262,7 +264,7 @@ end
 --- Auto-hide all apps option
 local function autoHideAll()
     ui.combo("Auto-hide all apps", hideAllApps, HIDE_CONDITIONS)
-    if ui.itemHovered() then ui.setTooltip("Auto-hide all apps in interior or exterior view") end
+    if ui.itemHovered() then ui.setTooltip("Auto-hide all apps in interior or exterior view or on timer") end
 
     if hideAllApps.value == 1 then -- off
         hideAllInt = false
@@ -420,7 +422,6 @@ local function rules()
         saveRules()
 
         listOfRules = {}
-        appsOnTimer = {}
         initRules()
     end
 end
@@ -459,7 +460,7 @@ end
 function script.update(dt)
     -- Load rules on session start
     if not rulesInit then initRules() end
-    appsOnTimer = table.filter(listOfRules, function(rule) return rule.condition == 4 end)
+
     -- Auto-hide after time-out
     if isHideOnTimeOut then
         hideVirtualMirror()
