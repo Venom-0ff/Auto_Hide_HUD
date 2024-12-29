@@ -1,7 +1,8 @@
 --- Auto-Hide HUD App
 --- Author: Venom
---- Version: 1.32
+--- Version: 1.33
 --- Changelog:
+--- v1.33: Fixed the desktop selection not affecting apps that are set to auto-hide on timer.
 --- v1.32: Fixed the bug from 1.31 where apps set to timer-based hiding starting to hide before pressing the Save button.
 --- v1.31: Fixed start up bug caused by apps set to timer-based hiding.
 --- v1.3: Implemented timer based hiding for individual apps, updated the "auto-hide all" option to integrate the timer based hiding there instead of a separate toggle.
@@ -240,7 +241,11 @@ local function timeOutIndividual(dt)
         if appsOnTimerHidden then
             table.forEach(appsOnTimer,
                 function(value, _)
-                    ac.accessAppWindow(value.appID):setVisible(true)
+                    if value.desktop == UI.currentDesktop + 1 or value.desktop == 5 then -- if correct desktop
+                        ac.accessAppWindow(value.appID):setVisible(true)
+                    elseif value.appID ~= nil and value.appID ~= "" then -- restore app window on other desktops
+                        ac.accessAppWindow(value.appID):setVisible(ac.accessAppWindow(value.appID):visible())
+                    end
                 end
             )
             appsOnTimerHidden = false
@@ -254,7 +259,11 @@ local function timeOutIndividual(dt)
     if not appsOnTimerHidden and hideTimer >= hideTimeOut then
         table.forEach(appsOnTimer,
             function(value, _)
-                ac.accessAppWindow(value.appID):setVisible(false)
+                if value.desktop == UI.currentDesktop + 1 or value.desktop == 5 then -- if correct desktop
+                    ac.accessAppWindow(value.appID):setVisible(false)
+                elseif value.appID ~= nil and value.appID ~= "" then -- restore app window on other desktops
+                    ac.accessAppWindow(value.appID):setVisible(ac.accessAppWindow(value.appID):visible())
+                end
             end
         )
         appsOnTimerHidden = true
