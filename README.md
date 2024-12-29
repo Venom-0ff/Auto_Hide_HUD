@@ -16,6 +16,8 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 [![Auto Hide HUD demo](https://img.youtube.com/vi/-D__XKbmtaQ/0.jpg)](https://youtu.be/-D__XKbmtaQ)
 
 ## Changelog
+  - v1.33
+    - Fixed the desktop selection not affecting apps that are set to auto-hide on timer.
   - v1.32
     - Fixed the bug from 1.31 where apps set to timer-based hiding were starting to hide before pressing the Save button.
   - v1.31
