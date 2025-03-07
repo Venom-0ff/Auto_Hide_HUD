@@ -82,7 +82,7 @@ local function initRules()
             appID = config:get("RULE_" .. i, "appID", ""),
             appName = config:get("RULE_" .. i, "appName", ""),
             condition = config:get("RULE_" .. i, "condition", 1),
-            desktop = config:get("RULE_" .. i, "desktop", 5),
+            desktop = config:get("RULE_" .. i, "desktop", #DESKTOPS),
             saved = config:get("RULE_" .. i, "saved", false),
         })
     end
@@ -168,7 +168,7 @@ local function applyRules()
         appsOnTimer = table.filter(listOfRules, function(rule) return rule.condition == 4 end)
         -- Iterate through custom rules and apply them if necessary
         for _, rule in ipairs(listOfRules) do
-            if rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5 then -- if correct desktop
+            if (rule.desktop == UI.currentDesktop + 1 or rule.desktop == #DESKTOPS) and not SIM.isPaused then -- if correct desktop
                 if rule.condition == 1 then
                     ac.accessAppWindow(rule.appID):setVisible(true)
                 elseif rule.condition == 2 then -- hide in interior
@@ -235,7 +235,7 @@ local function timeOutIndividual(dt)
         if appsOnTimerHidden then
             table.forEach(appsOnTimer,
                 function(value, _)
-                    if value.desktop == UI.currentDesktop + 1 or value.desktop == 5 then -- if correct desktop
+                    if (value.desktop == UI.currentDesktop + 1 or value.desktop == #DESKTOPS) and not SIM.isPaused then -- if correct desktop
                         ac.accessAppWindow(value.appID):setVisible(true)
                     elseif value.appID ~= nil and value.appID ~= "" then -- restore app window on other desktops
                         ac.accessAppWindow(value.appID):setVisible(ac.accessAppWindow(value.appID):visible())
@@ -253,7 +253,7 @@ local function timeOutIndividual(dt)
     if not appsOnTimerHidden and hideTimer >= hideTimeOut then
         table.forEach(appsOnTimer,
             function(value, _)
-                if value.desktop == UI.currentDesktop + 1 or value.desktop == 5 then -- if correct desktop
+                if (value.desktop == UI.currentDesktop + 1 or value.desktop == #DESKTOPS)and not SIM.isPaused then -- if correct desktop
                     ac.accessAppWindow(value.appID):setVisible(false)
                 elseif value.appID ~= nil and value.appID ~= "" then -- restore app window on other desktops
                     ac.accessAppWindow(value.appID):setVisible(ac.accessAppWindow(value.appID):visible())
@@ -363,7 +363,7 @@ local function customRules()
         ui.sameLine()
 
         if ui.modernButton("##Remove" .. i, vec2(22, 22), ui.ButtonFlags.Cancel, ui.Icons.Delete) then
-            if rule.appID ~= nil and rule.appID ~= "" and (rule.desktop == UI.currentDesktop + 1 or rule.desktop == 5) then
+            if rule.appID ~= nil and rule.appID ~= "" and (rule.desktop == UI.currentDesktop + 1 or rule.desktop == #DESKTOPS) then
                 ac.accessAppWindow(rule.appID):setVisible(true)
             end
 
@@ -401,7 +401,7 @@ local function rules()
     if #listOfRules > 0 then ui.separator() end
 
     if ui.modernButton("New Rule", vec2(112, 30), ui.ButtonFlags.None, ui.Icons.Plus) then
-        table.insert(listOfRules, { index = 1, appID = "", appName = "", condition = 1, desktop = 5, saved = false })
+        table.insert(listOfRules, { index = 1, appID = "", appName = "", condition = 1, desktop = #DESKTOPS, saved = false })
     end
 
     ui.sameLine()
