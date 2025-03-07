@@ -191,14 +191,11 @@ end
 local function timeOutFull(dt)
     -- detect mouse movement, clicks, CTRL pressed or D-Pad inputs
     if math.abs(ui.mouseDelta().x + ui.mouseDelta().y) > MOUSE_DISTANCE_MOVED or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadUp) or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadDown) or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadLeft) or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadRight) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadUp) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadDown) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadLeft) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadRight) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadUp) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadDown) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadLeft) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadRight) or
+        ac.getJoystickDpadValue(0, 0) > -1 or
         ac.isKeyDown(ui.KeyIndex.Control) or
         ac.isKeyDown(ui.KeyIndex.LeftButton) or
         ac.isKeyDown(ui.KeyIndex.RightButton)
@@ -225,14 +222,11 @@ end
 local function timeOutIndividual(dt)
     -- detect mouse movement, clicks, CTRL pressed or D-Pad inputs
     if math.abs(ui.mouseDelta().x + ui.mouseDelta().y) > MOUSE_DISTANCE_MOVED or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadUp) or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadDown) or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadLeft) or
-        ac.isGamepadButtonPressed(0, ac.GamepadButton.DPadRight) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadUp) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadDown) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadLeft) or
-        ac.isJoystickButtonPressed(0, ac.KeyIndex.GamepadDpadRight) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadUp) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadDown) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadLeft) or
+        ac.isGamepadButtonPressed(4, ac.GamepadButton.DPadRight) or
+        ac.getJoystickDpadValue(0, 0) > -1 or
         ac.isKeyDown(ui.KeyIndex.Control) or
         ac.isKeyDown(ui.KeyIndex.LeftButton) or
         ac.isKeyDown(ui.KeyIndex.RightButton)
