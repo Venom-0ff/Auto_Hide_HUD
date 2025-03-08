@@ -16,6 +16,9 @@ Allows you to auto-hide any app on your HUD with custom rules based on the inter
 [![Auto Hide HUD demo](https://img.youtube.com/vi/-D__XKbmtaQ/0.jpg)](https://youtu.be/-D__XKbmtaQ)
 
 ## Changelog
+  - v1.34
+    - Added compatibility wiith the new "Apps in pause menu" feature from CSP 0.2.7/0.2.8p1 to hopefully prevent any issues it may cause.
+    - Fixed an issue where dualsense (and potentially dualshock?) D-Pads were not recognised.
   - v1.33
     - Fixed the desktop selection not affecting apps that are set to auto-hide on timer.
   - v1.32
