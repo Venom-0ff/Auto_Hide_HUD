@@ -1,7 +1,8 @@
 --- Auto-Hide HUD App
 --- Author: Venom
---- Version: 1.33
+--- Version: 1.34
 --- Changelog:
+--- v1.34: Added compatibility wiith the new "Apps in pause menu" feature from CSP 0.2.7/0.2.8p1 to hopefully prevent any issues it may cause. Fixed an issue where dualsense (and potentially dualshock?) D-Pads were not recognised.
 --- v1.33: Fixed the desktop selection not affecting apps that are set to auto-hide on timer.
 --- v1.32: Fixed the bug from 1.31 where apps set to timer-based hiding starting to hide before pressing the Save button.
 --- v1.31: Fixed start up bug caused by apps set to timer-based hiding.
